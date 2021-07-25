@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Assista</string>
+    <string name="start">start</string>
+    <string name="stop">stop</string>
+    <string name="begin">begin</string>
+    <string name="sample_timer">88:88:88 AM</string>
+    <string name="autoCompleteTextView"><![CDATA[Insert Purpose & set Time (minutes)]]></string>
+    <string name="textViewPurpose">click to expand/collapse</string>
+    <string name="blank" />
+    <string name="textViewLastPurpose">Last Purpose (swipe to hide)</string>
+    <string name="symbol_difference">~</string>
+</resources>
