@@ -5,6 +5,8 @@ import android.util.AttributeSet;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+//this class is used to hide vertical scrolling effects in last purpose recycler view
+
 public class UnscrollableLinearLayoutManager extends LinearLayoutManager {
 
     @Override

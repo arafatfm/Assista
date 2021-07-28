@@ -12,11 +12,7 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -24,55 +20,82 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static com.afm.assista.App.ACTION_STOP;
+import static com.afm.assista.App.CHANNEL_ID;
+import static com.afm.assista.App.CLASS_NAME;
+import static com.afm.assista.App.FILENAME_APP_STATE;
+import static com.afm.assista.App.FILENAME_MAP;
+import static com.afm.assista.App.STOP_COMMAND;
+import static com.afm.assista.App.TIMER_DEFAULT;
+import static com.afm.assista.App.TIME_UNIT;
+import static com.afm.assista.App.getMap;
+import static com.afm.assista.App.ioO;
+import static com.afm.assista.App.isAppActive;
+import static com.afm.assista.App.purpose;
+import static com.afm.assista.App.setAppActive;
+import static com.afm.assista.App.setForegroundServiceRunning;
+import static com.afm.assista.App.setTimedOut;
+
 public class ForegroundService extends Service {
     private final String TAG = "xxx" + getClass().getSimpleName();
-    public static boolean isRunning;
-    private BroadcastReceiver receiver;
-    public static ScheduledExecutorService executor, timer;
-    public static boolean executorRunning, timerRunning, timedOut;
-    public static MyCalendar logStart, logEnd;
-    private static File location;
+    private BroadcastReceiver receiverScreen;
+    private static ScheduledExecutorService executor, timer;
+    private static boolean executorRunning, timerRunning;
+    private static MyCalendar logEndTime;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        isRunning = true;
+        setForegroundServiceRunning(true);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
 
-        receiver = new ScreenBR();
-        registerReceiver(receiver, filter);
-
-        location = getExternalFilesDir(null);
+        receiverScreen = new ScreenBR();
+        registerReceiver(receiverScreen, filter);
 
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if(intent.hasExtra(STOP_COMMAND)) {
+            stopSelf();
+            sendBroadcast(new Intent(ACTION_STOP));
 
-        String className = intent.getStringExtra("IntentExtra");
-
-        if(className.equals("LoggerActivity")) {
-            long time = intent.getLongExtra("TimerExtra", LoggerActivity.TIMER_DEFAULT);
-            timer = Executors.newSingleThreadScheduledExecutor();
-            timer.schedule(this::timerTimeOut, time, TimeUnit.MINUTES);
-            logStart = new MyCalendar(Calendar.getInstance());
-            timerRunning = true;
-            List<List<MyCalendar>> thisList = LoggerActivity.map.get(LoggerActivity.purpose);
-            if(thisList != null) {
-                thisList.add(new ArrayList<>());
-                addToMap(logStart);
+            setAppActive(false);
+            try {
+                ioO.saveObjectToStorage(isAppActive(), FILENAME_APP_STATE);
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
             }
-        } else {
-            startExecutor();
         }
 
-        Intent stopService = new Intent(this, NotificationBR.class);
-        PendingIntent pIntent = PendingIntent.getBroadcast(this, 0, stopService, 0);
+        if(intent.hasExtra(CLASS_NAME)) {
+            String className = intent.getStringExtra(CLASS_NAME);
 
-        Notification notification = new NotificationCompat.Builder(this,App.getChannelId())
+            if(className.equals("LoggerActivity")) {
+                long time = intent.getLongExtra("TimerExtra", TIMER_DEFAULT);
+                timer = Executors.newSingleThreadScheduledExecutor();
+                timer.schedule(this::timerTimeOut, time, TIME_UNIT);
+                MyCalendar logStartTime = new MyCalendar(Calendar.getInstance());
+                timerRunning = true;
+                List<List<MyCalendar>> thisList = getMap().get(purpose);
+                if(thisList != null) {
+                    thisList.add(new ArrayList<>());
+                    addToMap(logStartTime);
+                }
+            } else {
+                startExecutor();
+            }
+        }
+
+        Intent stopService = new Intent(this, ForegroundService.class);
+        stopService.putExtra(STOP_COMMAND, "stopForegroundService");
+
+        PendingIntent pIntent = PendingIntent.getService(this, 0, stopService, 0);
+
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Assista is running")
                 .setSmallIcon(R.drawable.ic_notification)
                 .addAction(0, "Stop running", pIntent)
@@ -85,11 +108,12 @@ public class ForegroundService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        isRunning = false;
-        unregisterReceiver(receiver);
+        setForegroundServiceRunning(false);
+        unregisterReceiver(receiverScreen);
         interruptTimer();
         stopExecutor();
-        LoggerActivity.purpose = "";
+        purpose = "";
+        LoggerActivity.deleteLastPurpose();
 
     }
 
@@ -108,28 +132,25 @@ public class ForegroundService extends Service {
 
     private void timerTimeOut() {
         timerRunning = false;
-        timedOut = true;
-        logEnd = new MyCalendar(Calendar.getInstance());
-        addToMap(logEnd);
-        LoggerActivity.purpose = "";
+        setTimedOut(true);
+        logEndTime = new MyCalendar(Calendar.getInstance());
+        addToMap(logEndTime);
+        purpose = "";
         startExecutor();
     }
 
     private static void addToMap(MyCalendar data) {
-        List<List<MyCalendar>> thisList = LoggerActivity.map.get(LoggerActivity.purpose);
+        List<List<MyCalendar>> thisList = getMap().get(purpose);
         int index;
         if(thisList != null) {
             index = thisList.size() - 1;
             thisList.get(index).add(data);
         }
 
-        File fileMap = new File(location, LoggerActivity.FILE_MAP);
-        try(ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileMap))) {
-            oos.writeObject(LoggerActivity.map);
-        } catch (FileNotFoundException fnfException) {
-            Log.d("xxxForegroundService", "writeMap: " + fnfException);
+        try {
+            ioO.saveObjectToStorage(getMap(), FILENAME_MAP);
         } catch (IOException ioException) {
-            Log.d("xxxForegroundService", "writeMap:  " + ioException);
+            ioException.printStackTrace();
         }
     }
 
@@ -138,9 +159,9 @@ public class ForegroundService extends Service {
             if(!timer.isShutdown()) {
                 timer.shutdownNow();
                 timerRunning = false;
-                logEnd = new MyCalendar(Calendar.getInstance());
-                addToMap(logEnd);
-                LoggerActivity.purpose = "";
+                logEndTime = new MyCalendar(Calendar.getInstance());
+                addToMap(logEndTime);
+                purpose = "";
             }
         }
     }
@@ -152,11 +173,6 @@ public class ForegroundService extends Service {
                 executorRunning = false;
             }
         }
-    }
-
-
-    public static boolean isRunning() {
-        return isRunning;
     }
 
     @Nullable

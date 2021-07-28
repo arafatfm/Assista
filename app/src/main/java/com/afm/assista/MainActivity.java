@@ -13,22 +13,59 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.io.IOException;
+
+import static com.afm.assista.App.CLASS_NAME;
+import static com.afm.assista.App.FILENAME_APP_STATE;
+import static com.afm.assista.App.isAppActive;
+import static com.afm.assista.App.isForegroundServiceRunning;
+import static com.afm.assista.App.setAppActive;
+
 public class MainActivity extends AppCompatActivity {
     private final String TAG = "xxx" + getClass().getSimpleName();
     private Button button;
 
     ActivityResultLauncher<Intent> arl = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(), result -> checkOverlayPermission());
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> checkOverlayPermission());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         button = findViewById(R.id.button);
-        checkOverlayPermission();
-
         Button buttonFix = findViewById(R.id.buttonFix);
-        buttonFix.setOnClickListener(v -> new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialog_Rounded)
+
+        checkOverlayPermission();
+        buttonFix.setOnClickListener(v -> buttonFixClickAction());
+
+        button.setOnClickListener(v -> buttonClickAction());
+    }
+
+    private void buttonClickAction() {
+        Intent serviceIntent = new Intent(this, ForegroundService.class);
+        serviceIntent.putExtra(CLASS_NAME, getClass().getSimpleName());
+
+        if(!isForegroundServiceRunning()) {
+            ContextCompat.startForegroundService(this, serviceIntent);
+            setAppActive(true);
+            button.setText(R.string.stop);
+            finishAndRemoveTask();
+        } else {
+            stopService(serviceIntent);
+            setAppActive(false);
+            button.setText(R.string.start);
+        }
+        IOOperation ioO = new IOOperation();
+        try {
+            ioO.saveObjectToStorage(isAppActive(), FILENAME_APP_STATE);
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+    }
+
+    private void buttonFixClickAction() {
+        new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialog_Rounded)
                 .setCancelable(false)
                 .setTitle("For MiUi Only")
                 .setMessage("-> Boost speed -> Lock apps" + "\n-> Find app name & lock")
@@ -38,22 +75,8 @@ public class MainActivity extends AppCompatActivity {
                             "com.miui.securityscan.ui.settings.SettingsActivity");
                     startActivity(intent);
                 })
-                .setNegativeButton("cancel", (dialog, which) -> dialog.dismiss()).create().show());
-
-        button.setOnClickListener(v -> {
-            Intent serviceIntent = new Intent(this, ForegroundService.class);
-            serviceIntent.putExtra("IntentExtra", getClass().getSimpleName());
-
-            if(!ForegroundService.isRunning()) {
-                ContextCompat.startForegroundService(this, serviceIntent);
-
-                button.setText(R.string.stop);
-                finishAndRemoveTask();
-            } else {
-                stopService(serviceIntent);
-                button.setText(R.string.start);
-            }
-        });
+                .setNegativeButton("cancel", (dialog, which) ->
+                        dialog.dismiss()).create().show();
     }
 
     private void checkOverlayPermission() {
@@ -63,8 +86,10 @@ public class MainActivity extends AppCompatActivity {
                     .setTitle("Permission Required")
                     .setMessage("Assista needs your permission to\nDisplay Over Other Apps")
                     .setPositiveButton("ok", (dialog, which) -> arl.launch(new Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))))
-                    .setNegativeButton("exit", (dialog, which) -> finishAndRemoveTask()).create().show();
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName()))))
+                    .setNegativeButton("exit", (dialog, which) ->
+                            finishAndRemoveTask()).create().show();
 
         }
     }
@@ -73,22 +98,8 @@ public class MainActivity extends AppCompatActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if(hasFocus) {
-            if(!ForegroundService.isRunning()) {button.setText(R.string.start);}
+            if(!isForegroundServiceRunning()) {button.setText(R.string.start);}
             else {button.setText(R.string.stop);}
-        }
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    @Override
-    public void onBackPressed() {
-        if(ForegroundService.isRunning()) {
-            finishAndRemoveTask();
-        } else {
-            super.onBackPressed();
         }
     }
 

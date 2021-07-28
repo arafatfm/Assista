@@ -12,6 +12,8 @@ import java.util.List;
 
 //https://www.youtube.com/watch?v=69C1ljfDvl0
 
+//special recyclerView adapter for onClick Action on last purpose
+
 public class RvLastPurposeAdapter extends RecyclerView.Adapter<RvLastPurposeAdapter.RvViewHolder> {
     private final List<List<String>> list;
     private final OnLpClickListener mOnLpClickListener;

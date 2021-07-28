@@ -10,6 +10,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
 
+//regular adapter for recyclerView used in history
+
 public class RvHistoryAdapter extends RecyclerView.Adapter<RvHistoryAdapter.RvViewHolder> {
     private final List<List<MyCalendar>> lists;
 
@@ -29,7 +31,6 @@ public class RvHistoryAdapter extends RecyclerView.Adapter<RvHistoryAdapter.RvVi
     public void onBindViewHolder(@NonNull RvViewHolder holder, int position) {
         int size = lists.size() - 1;
         holder.textViewRV1.setText(lists.get(size-position).get(0).getTime());
-//        if(lists.get(size-position).get(1) != null)
         holder.textViewRV2.setText(lists.get(size-position).get(1).getTime());
     }
 

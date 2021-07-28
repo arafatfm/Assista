@@ -1,8 +1,10 @@
 package com.afm.assista;
 
 import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -14,7 +16,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
@@ -26,55 +27,45 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAdapter.OnLpClickListener {
+import static com.afm.assista.App.ACTION_STOP;
+import static com.afm.assista.App.CLASS_NAME;
+import static com.afm.assista.App.FILENAME_MAP;
+import static com.afm.assista.App.FILENAME_PURPOSE;
+import static com.afm.assista.App.FILENAME_TIMER;
+import static com.afm.assista.App.FILE_DIRECTORY;
+import static com.afm.assista.App.TIMER_DEFAULT;
+import static com.afm.assista.App.getMap;
+import static com.afm.assista.App.ioO;
+import static com.afm.assista.App.isForegroundServiceRunning;
+import static com.afm.assista.App.isTimedOut;
+import static com.afm.assista.App.purpose;
+import static com.afm.assista.App.setMap;
+import static com.afm.assista.App.setTimedOut;
+
+public class LoggerActivity extends AppCompatActivity
+        implements RvLastPurposeAdapter.OnLpClickListener {
     private final String TAG = "xxx" + getClass().getSimpleName();
 
-    public static final String FILE_MAP = "database.dat";
-    public static final String FILE_TIMER = "timer.dat";
-    public static final String FILE_PURPOSE = "purpose.txt";
-
-    public static Map<String, List<List<MyCalendar>>> map;
-    public static final long TIMER_DEFAULT = 2;
     private static long timerDefault;
-    public static String purpose = "";
     private RecyclerView recyclerViewHistory, recyclerViewLPurpose;
     private TextView textViewPurpose, textViewTotalTimeSpent;
-    private CardView cardViewHistory;
+    private CardView cardViewHistory, cardViewPurpose;
     private EditText editTextTimer;
     private AutoCompleteTextView acTextView;
-    private long timer;
     private static String lastPurpose;
     RvHistoryAdapter rvHistoryAdapter;
     RvLastPurposeAdapter rvLastPurposeAdapter;
     private String timeLastSpent;
-
-    private void timeUp() {
-        if(ForegroundService.timedOut) {
-            ForegroundService.timedOut = false;
-            new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialog_Rounded)
-                    .setCancelable(false)
-                    .setTitle("TIME UP !!!")
-                    .setMessage("" + lastPurpose +
-                            "\nused ->  " + timeLastSpent +
-                            "\n\nDon't Waste Time  :)")
-                    .setPositiveButton("ok", (dialog, which) -> dialog.dismiss()).create().show();
-        }
-    }
+    private Button buttonBegin;
+    private BroadcastReceiver receiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,27 +73,26 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
         setContentView(R.layout.activity_logger);
         Log.i(TAG, "onCreate: called");
 
-        Button buttonBegin = findViewById(R.id.buttonBegin);
-        CardView cardViewPurpose = findViewById(R.id.cardViewPurpose);
-        acTextView = findViewById(R.id.autoCompleteTextView);
-        editTextTimer = findViewById(R.id.editTextNumber);
-        editTextTimer.setHint(String.valueOf(timerDefault));
-        recyclerViewHistory = findViewById(R.id.recyclerViewHistory);
-        recyclerViewLPurpose = findViewById(R.id.recyclerViewLastPurpose);
-        cardViewHistory = findViewById(R.id.cardViewHistory);
-        cardViewHistory.setVisibility(View.GONE);
-        textViewPurpose = findViewById(R.id.textViewPurpose);
-        textViewTotalTimeSpent = findViewById(R.id.textViewTotalTimeSpent);
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                finishAndRemoveTask();
+            }
+        };
+        IntentFilter filter = new IntentFilter(ACTION_STOP);
+        registerReceiver(receiver, filter);
 
+        initialization();
         getMapFromStorage();
         historyCleaner();
         getTimerDefaultFromStorage();
         getLastPurposeFromStorage();
-        lastPurposeRecyclerView();
-        timeUp();
+        lastPurposeRVAction();
+        timeUpAction();
 
-        ArrayAdapter<String> adapterACTV = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1,
-                new ArrayList<>(map.keySet()));
+        ArrayAdapter<String> adapterACTV = new ArrayAdapter<>(this,
+                android.R.layout.simple_list_item_1,
+                new ArrayList<>(getMap().keySet()));
         acTextView.setAdapter(adapterACTV);
 
         cardViewPurpose.setOnClickListener(v -> {
@@ -111,62 +101,9 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
             else cardViewHistory.setVisibility(View.VISIBLE);
         });
 
-        buttonBegin.setOnLongClickListener(v -> {
-            String tempString = editTextTimer.getText().toString();
-            if(!tempString.equals("")) {
-                if(Long.parseLong(tempString) != 0) {
-                    timerDefault = Long.parseLong(tempString);
-                }
-                editTextTimer.setText("");
-            } else {
-                timerDefault = TIMER_DEFAULT;
-            }
-            editTextTimer.setHint(String.valueOf(timerDefault));
+        buttonBegin.setOnLongClickListener(v -> buttonBeginLongClickAction());
 
-            File fileTimer = new File(getExternalFilesDir(null), FILE_TIMER);
-            try(ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileTimer))) {
-                oos.writeObject(timerDefault);
-            } catch (FileNotFoundException fnfException) {
-                Log.d(TAG, "writeFileTimer: " + fnfException);
-            } catch (IOException ioException) {
-                Log.d(TAG, "writeFileTimer:  " + ioException);
-            }
-            return true;
-        });
-
-        buttonBegin.setOnClickListener(v -> {
-            String tempString = acTextView.getText().toString().trim();
-            if(tempString.length() > 1) {
-                ForegroundService.stopExecutor();
-
-                tempString = tempString.substring(0,1).toUpperCase() + tempString.substring(1).toLowerCase();
-                lastPurpose = purpose = tempString;
-                acTextView.setText("");
-
-                if(!map.containsKey(purpose)) {
-                    map.put(purpose, new ArrayList<>());
-                }
-
-                tempString = editTextTimer.getText().toString().trim();
-                if(!tempString.equals("")) {
-                    timer = Long.parseLong(tempString);
-                    if(Long.parseLong(tempString) != 0) {
-                        timer = Long.parseLong(tempString);
-                    } else {
-                        timer = timerDefault;
-                    }
-                    editTextTimer.setText("");
-                } else timer = timerDefault;
-                Intent serviceIntent = new Intent(this, ForegroundService.class);
-                serviceIntent.putExtra("IntentExtra", getClass().getSimpleName());
-                serviceIntent.putExtra("TimerExtra", timer);
-                ContextCompat.startForegroundService(this, serviceIntent);
-
-                setLastPurposeToStorage();
-
-                finishAndRemoveTask();
-            }
-        });
+        buttonBegin.setOnClickListener(v -> buttonBeginClickAction());
 
         acTextView.setOnKeyListener((v, keyCode, event) -> {
             if(keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -179,17 +116,83 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
 
     }
 
-    private void lastPurposeRecyclerView() {
-        List<List<String>> tempList = new ArrayList<>();
+    private void buttonBeginClickAction() {
+        String tempString = acTextView.getText().toString().trim();
+        if(tempString.length() > 1) {
+            ForegroundService.stopExecutor();
 
-        ItemTouchHelper.SimpleCallback itemTouchCallback = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.RIGHT) {
-            @Override
-            public boolean onMove(@NonNull @NotNull RecyclerView recyclerView, @NonNull @NotNull RecyclerView.ViewHolder viewHolder, @NonNull @NotNull RecyclerView.ViewHolder target) {
-                return false;
+            tempString = tempString.substring(0,1).toUpperCase() +
+                    tempString.substring(1).toLowerCase();
+            lastPurpose = purpose = tempString;
+            acTextView.setText("");
+
+            if(!getMap().containsKey(purpose)) {
+                getMap().put(purpose, new ArrayList<>());
             }
 
+            tempString = editTextTimer.getText().toString().trim();
+            long timer;
+            if(!tempString.equals("")) {
+                if(Long.parseLong(tempString) != 0) {
+                    timer = Long.parseLong(tempString);
+                } else {
+                    timer = timerDefault;
+                }
+                editTextTimer.setText("");
+            } else timer = timerDefault;
+            Intent serviceIntent = new Intent(this, ForegroundService.class);
+            serviceIntent.putExtra(CLASS_NAME, getClass().getSimpleName());
+            serviceIntent.putExtra("TimerExtra", timer);
+            ContextCompat.startForegroundService(this, serviceIntent);
+
+            setLastPurposeToStorage();
+
+            finishAndRemoveTask();
+        }
+    }
+
+    private boolean buttonBeginLongClickAction() {
+        String tempString = editTextTimer.getText().toString();
+        if(!tempString.equals("")) {
+            if(Long.parseLong(tempString) != 0) {
+                timerDefault = Long.parseLong(tempString);
+            }
+            editTextTimer.setText("");
+        } else {
+            timerDefault = TIMER_DEFAULT;
+        }
+        editTextTimer.setHint(String.valueOf(timerDefault));
+
+        try {
+            ioO.saveObjectToStorage(timerDefault, FILENAME_TIMER);
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+        return true;
+    }
+
+    private void initialization() {
+        buttonBegin = findViewById(R.id.buttonBegin);
+        cardViewPurpose = findViewById(R.id.cardViewPurpose);
+        acTextView = findViewById(R.id.autoCompleteTextView);
+        editTextTimer = findViewById(R.id.editTextNumber);
+        editTextTimer.setHint(String.valueOf(timerDefault));
+        recyclerViewHistory = findViewById(R.id.recyclerViewHistory);
+        recyclerViewLPurpose = findViewById(R.id.recyclerViewLastPurpose);
+        cardViewHistory = findViewById(R.id.cardViewHistory);
+        cardViewHistory.setVisibility(View.GONE);
+        textViewPurpose = findViewById(R.id.textViewPurpose);
+        textViewTotalTimeSpent = findViewById(R.id.textViewTotalTimeSpent);
+    }
+
+    private void lastPurposeRVAction() {
+        List<List<String>> tempList = new ArrayList<>();
+
+        ItemTouchHelper.SimpleCallback itemTouchCallback = new ItemTouchHelper
+                .SimpleCallback(0, ItemTouchHelper.RIGHT) {
+
             @Override
-            public void onSwiped(@NonNull @NotNull RecyclerView.ViewHolder viewHolder, int direction) {
+            public void onSwiped(@NotNull RecyclerView.ViewHolder viewHolder, int direction) {
                 Log.i(TAG, "onSwiped: worked");
                 int position = viewHolder.getAdapterPosition();
                 tempList.remove(position);
@@ -197,10 +200,16 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
                 Log.i(TAG, "filePurposeDeleted?: " + deleteLastPurpose());
 
             }
+            @Override
+            public boolean onMove(@NotNull RecyclerView recyclerView,
+                                  @NotNull RecyclerView.ViewHolder viewHolder,
+                                  @NotNull RecyclerView.ViewHolder target) {
+                return false;
+            }
         };
 
         if(!lastPurpose.equals("")) {
-            List<List<MyCalendar>> thisList = map.get(lastPurpose);
+            List<List<MyCalendar>> thisList = getMap().get(lastPurpose);
 
             if(thisList != null) {
                 if(thisList.size() != 0){
@@ -213,10 +222,13 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
                     tempList.get(0).add(lastPurpose);
                     tempList.get(0).add(timeLastSpent);
 
-                    rvLastPurposeAdapter = new RvLastPurposeAdapter(tempList, this);
-                    new ItemTouchHelper(itemTouchCallback).attachToRecyclerView(recyclerViewLPurpose);
+                    rvLastPurposeAdapter = new RvLastPurposeAdapter(
+                            tempList, this);
+                    new ItemTouchHelper(itemTouchCallback)
+                            .attachToRecyclerView(recyclerViewLPurpose);
                     recyclerViewLPurpose.setAdapter(rvLastPurposeAdapter);
-                    recyclerViewLPurpose.setLayoutManager(new UnscrollableLinearLayoutManager(this));
+                    recyclerViewLPurpose.setLayoutManager(
+                            new UnscrollableLinearLayoutManager(this));
                 }
             }
         } else {
@@ -225,68 +237,52 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
     }
 
     private void getLastPurposeFromStorage() {
-        File filePurpose = new File(getExternalFilesDir(null), FILE_PURPOSE);
-        try(BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filePurpose)))) {
-            lastPurpose = reader.readLine();
-            Log.i(TAG, "getLastPurposeFromStorage: " + lastPurpose);
-        } catch (FileNotFoundException fnfException) {
+        try {
+            lastPurpose = String.valueOf(ioO.loadObjectFromStorage(FILENAME_PURPOSE));
+        } catch (IOException | ClassNotFoundException ioException) {
             lastPurpose = "";
-            Log.d(TAG, "readPurpose:   " + fnfException);
-        } catch (IOException ioException) {
-            Log.d(TAG, "readPurpose:  " + ioException);
         }
     }
 
     private void getTimerDefaultFromStorage() {
-        File fileTimer = new File(getExternalFilesDir(null), FILE_TIMER);
-        try(ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileTimer))) {
-            timerDefault = (long) ois.readObject();
-        } catch (FileNotFoundException fnfException) {
+
+        try {
+            timerDefault = (long) ioO.loadObjectFromStorage(FILENAME_TIMER);
+        } catch (IOException | ClassNotFoundException exception) {
+            exception.printStackTrace();
             timerDefault = TIMER_DEFAULT;
-            Log.d(TAG, "readTimer: " + fnfException);
-        } catch (IOException ioException) {
-            Log.d(TAG, "readTimer: " + ioException);
-        } catch (ClassNotFoundException cnfException) {
-            Log.d(TAG, "readTimer:  " + cnfException);
         }
         editTextTimer.setHint(String.valueOf(timerDefault));
     }
 
     @SuppressWarnings("unchecked")
     private void getMapFromStorage() {
-        File fileMap = new File(getExternalFilesDir(null), FILE_MAP);
-        try(ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileMap))) {
-            map = (Map<String, List<List<MyCalendar>>>) ois.readObject();
-        } catch (FileNotFoundException fnfException) {
-            map = new HashMap<>();
-            Log.d(TAG, "readMap: " + fnfException);
-        } catch (IOException ioException) {
-            Log.d(TAG, "readMap: " + ioException);
-        } catch (ClassNotFoundException cnfException) {
-            Log.d(TAG, "readMap:  " + cnfException);
+        try {
+            setMap((Map<String, List<List<MyCalendar>>>) ioO.loadObjectFromStorage(FILENAME_MAP));
+        } catch (IOException | ClassNotFoundException exception) {
+            exception.printStackTrace();
+            setMap(new HashMap<>());
         }
     }
 
     private void setLastPurposeToStorage() {
-        File filePurpose = new File(getExternalFilesDir(null), FILE_PURPOSE);
-        try(FileOutputStream fos = new FileOutputStream(filePurpose)) {
-            fos.write(lastPurpose.getBytes());
-        } catch (FileNotFoundException fnfException) {
-            Log.d(TAG, "writePurpose: " + fnfException);
+        try {
+            ioO.saveObjectToStorage(lastPurpose, FILENAME_PURPOSE);
         } catch (IOException ioException) {
-            Log.d(TAG, "writePurpose:  " + ioException);
+            ioException.printStackTrace();
         }
     }
 
     private void inputAction() {
         String tempString = acTextView.getText().toString().trim();
         if(tempString.length() > 1) {
-            tempString = tempString.substring(0,1).toUpperCase() + tempString.substring(1).toLowerCase();
+            tempString = tempString.substring(0,1).toUpperCase() +
+                    tempString.substring(1).toLowerCase();
             textViewPurpose.setText(tempString);
 
             List<List<MyCalendar>> thisList;
-            if(map.containsKey(tempString)) {
-                thisList = map.get(tempString);
+            if(getMap().containsKey(tempString)) {
+                thisList = getMap().get(tempString);
 
                 if(thisList != null) {          //for compiler's sake
                     long seconds = 0;
@@ -312,7 +308,7 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
 
     private void historyCleaner() {
         Calendar today = Calendar.getInstance();
-        for(List<List<MyCalendar>> thisList : map.values()) {
+        for(List<List<MyCalendar>> thisList : getMap().values()) {
             for(int index=0 ; index<thisList.size() ; index++) {
                 List<MyCalendar> thatList = thisList.get(index);
                 if(thatList.size() < 2) {
@@ -356,7 +352,7 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
         super.onPause();
         Log.i("TAG", "onPause: called");
 
-        if(ForegroundService.isRunning()) {
+        if(isForegroundServiceRunning()) {
             if(purpose.equals("")) {
                 ActivityManager activityManager = (ActivityManager) getApplicationContext()
                         .getSystemService(Context.ACTIVITY_SERVICE);
@@ -372,14 +368,14 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
         super.onStop();
         Log.i(TAG, "onStop: called");
 
-        if(!ForegroundService.isRunning()) {
+        if(!isForegroundServiceRunning()) {
             finishAndRemoveTask();
         }
     }
 
     @Override
     public void onBackPressed() {
-        if(!ForegroundService.isRunning()) {
+        if(!isForegroundServiceRunning()) {
             finishAndRemoveTask();
         }
     }
@@ -398,17 +394,29 @@ public class LoggerActivity extends AppCompatActivity implements RvLastPurposeAd
         inputAction();
     }
 
-    private boolean deleteLastPurpose() {
+    public static boolean deleteLastPurpose() {
         lastPurpose = "";
-        File filePurpose = new File(getExternalFilesDir(null), FILE_PURPOSE);
+        File filePurpose = new File(FILE_DIRECTORY, FILENAME_PURPOSE);
         return filePurpose.delete();
     }
 
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if(hasFocus) {
-            if(!ForegroundService.isRunning()) finishAndRemoveTask();
+    private void timeUpAction() {
+        if(isTimedOut()) {
+            setTimedOut(false);
+            new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialog_Rounded)
+                    .setCancelable(false)
+                    .setTitle("TIME UP !!!")
+                    .setMessage("" + lastPurpose +
+                            "\nused ->  " + timeLastSpent +
+                            "\n\nDon't Waste Time  :)")
+                    .setPositiveButton("ok", (dialog, which) ->
+                            dialog.dismiss()).create().show();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(receiver);
     }
 }

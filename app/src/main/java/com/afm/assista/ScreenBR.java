@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.Intent;
 
 import androidx.core.content.ContextCompat;
+import static com.afm.assista.App.purpose;
+
+//this class is used to detect screen on off action
 
 public class ScreenBR extends BroadcastReceiver {
     private final String TAG = "xxx" + getClass().getSimpleName();
@@ -21,7 +24,7 @@ public class ScreenBR extends BroadcastReceiver {
 
             ForegroundService.interruptTimer();
             ForegroundService.stopExecutor();
-            LoggerActivity.purpose = "";
+            purpose = "";
         }
     }
 }

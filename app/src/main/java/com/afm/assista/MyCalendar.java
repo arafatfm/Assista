@@ -5,6 +5,8 @@ import android.annotation.SuppressLint;
 import java.io.Serializable;
 import java.util.Calendar;
 
+//this class is for formatted time
+
 public class MyCalendar implements Serializable {
     private final long serialVersionUID = 1L;
     private final Calendar calendar;
@@ -33,9 +35,5 @@ public class MyCalendar implements Serializable {
     public long getTimeInMillis() {
         return calendar.getTimeInMillis();
     }
-
-//    public Date getFullTime() {
-//        return calendar.getTime();
-//    }
 
 }
