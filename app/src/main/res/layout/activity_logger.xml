@@ -7,41 +7,30 @@
     android:padding="12dp"
     tools:context=".LoggerActivity">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerViewLastPurpose"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="2dp"
-        android:layout_marginEnd="2dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
     <AutoCompleteTextView
         android:id="@+id/autoCompleteTextView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="10dp"
         android:completionThreshold="0"
         android:hint="@string/autoCompleteTextView"
         android:inputType="text"
         android:maxLength="30"
+        android:paddingHorizontal="6dp"
         android:textSize="16sp"
         app:layout_constraintEnd_toStartOf="@+id/editTextNumber"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/recyclerViewLastPurpose" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <EditText
         android:id="@+id/editTextNumber"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:ems="2"
         android:imeOptions="actionDone"
         android:importantForAutofill="no"
         android:inputType="number"
         android:maxLength="2"
-        android:paddingStart="10dp"
-        android:paddingEnd="1dp"
+        android:paddingHorizontal="10dp"
         android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@+id/autoCompleteTextView"
@@ -51,9 +40,8 @@
         android:id="@+id/cardViewPurpose"
         android:layout_width="0dp"
         android:layout_height="60dp"
-        android:layout_marginStart="2dp"
+        android:layout_marginHorizontal="1dp"
         android:layout_marginTop="10dp"
-        android:layout_marginEnd="2dp"
         app:cardCornerRadius="16dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -62,6 +50,7 @@
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:layout_marginHorizontal="4dp"
             android:padding="4dp">
 
             <TextView
@@ -93,12 +82,14 @@
     <androidx.cardview.widget.CardView
         android:id="@+id/cardViewHistory"
         android:layout_width="0dp"
-        android:layout_height="160dp"
+        android:layout_height="wrap_content"
         android:layout_marginStart="30dp"
         android:layout_marginTop="14dp"
         android:layout_marginEnd="30dp"
         app:cardCornerRadius="16dp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHeight_max="162dp"
+        app:layout_constraintHeight_min="54dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/cardViewPurpose">
 
@@ -116,7 +107,7 @@
         android:layout_height="54dp"
         android:layout_marginTop="14dp"
         android:text="@string/begin"
-        app:cornerRadius="20dp"
+        app:cornerRadius="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/cardViewHistory" />

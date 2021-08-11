@@ -4,18 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    tools:context=".BlacklistActivity">
 
-    <Button
-        android:id="@+id/button"
-        android:layout_width="300dp"
-        android:layout_height="100dp"
-        android:text="@string/start"
-        android:textSize="18sp"
-        app:cornerRadius="16dp"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewWhiteList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
 </androidx.constraintlayout.widget.ConstraintLayout>

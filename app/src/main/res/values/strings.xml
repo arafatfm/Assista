@@ -4,9 +4,10 @@
     <string name="stop">stop</string>
     <string name="begin">begin</string>
     <string name="sample_timer">88:88:88 AM</string>
-    <string name="autoCompleteTextView"><![CDATA[Insert Purpose & set Time (minutes)]]></string>
-    <string name="textViewPurpose">click to expand/collapse</string>
+    <string name="autoCompleteTextView">Insert Purpose</string>
+    <string name="textViewPurpose">Click to show/hide history</string>
     <string name="blank" />
     <string name="textViewLastPurpose">Last Purpose (swipe to hide)</string>
     <string name="symbol_difference">~</string>
+    <string name="accessibility_description">Switch it on to use Assista</string>
 </resources>

@@ -3,9 +3,15 @@
     package="com.afm.assista">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+        </intent>
+    </queries>
 
     <application
         android:name=".App"
@@ -15,11 +21,25 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Assista">
-        <activity android:name=".LoggerActivity"
-            android:launchMode="singleTop"
+        <activity
+            android:name=".DialogActivity"
             android:excludeFromRecents="true"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"/>
-        <activity android:name=".MainActivity">
+            android:theme="@style/Theme.Transparent"
+            android:exported="false" />
+        <activity
+            android:name=".BlacklistActivity"
+            android:exported="false"
+            android:label="Blacklist"
+            android:parentActivityName=".MainActivity" />
+        <activity
+            android:name=".LoggerActivity"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -28,7 +48,23 @@
         </activity>
 
         <service android:name=".ForegroundService" />
-        <receiver android:name=".BootCompletedBR">
+        <service
+            android:name=".MyAccessibilityService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <receiver
+            android:name=".BootCompletedBR"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
